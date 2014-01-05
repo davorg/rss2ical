@@ -1,0 +1,41 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use 5.010;
+
+use LWP::UserAgent;
+use XML::RSS;
+use Data::ICal;
+use Data::ICal::Entry::Event;
+use DateTime::Format::Strptime;
+use DateTime::Format::ICal;
+
+my $rss_url = shift || die "Must give RSS url";
+
+my $dt_p = DateTime::Format::Strptime->new(
+  pattern  => '%a, %d %B %Y %H:%M:%S %Z',
+  on_error => 'croak',
+);
+
+my $rss_p = XML::RSS->new;
+my $ua = LWP::UserAgent->new(agent => 'Foo');
+my $resp = $ua->get($rss_url);
+my $rss = $rss_p->parse($resp->decoded_content);
+
+my $ical = Data::ICal->new;
+
+foreach (@{$rss->{items}}) {
+  my $entry = Data::ICal::Entry::Event->new;
+  my $date = DateTime::Format::ICal->format_datetime(
+    $dt_p->parse_datetime($_->{pubDate})
+  );
+  $entry->add_properties(
+    summary => $_->{title},
+    dtstart => $date,
+    dtend   => $date,
+  );
+  $ical->add_entry($entry);
+}
+
+print $ical->as_string;
